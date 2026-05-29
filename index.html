@@ -674,6 +674,10 @@
     <div class="panel" id="panel-templates">
       <div class="section-header">Metadata Templates</div>
       <div class="section-desc">Templates define the required and optional metadata fields for different data types. Click any template to expand its field definitions.</div>
+      <div id="attr-filter-bar" style="margin-bottom:16px">
+        <input type="text" id="template-search" style="flex:1;min-width:200px;background:var(--surface);border:1px solid var(--border2);border-radius:6px;padding:7px 12px;font-family:var(--mono);font-size:12px;color:var(--text);outline:none;" placeholder="Search templates..." oninput="filterTemplates(this.value)">
+      </div>
+      <div class="attr-results-info" id="template-results-info"></div>
       <div id="template-list-container"></div>
     </div>
 
@@ -857,9 +861,15 @@ function filterAttributes() {
   const q = (document.getElementById('attr-search').value || '').toLowerCase();
   const mod = document.getElementById('module-filter').value;
   const filtered = MODEL.attributes.filter(a => {
-    const matchQ = !q || a.attribute.toLowerCase().includes(q) || (a.description||'').toLowerCase().includes(q);
-    const matchMod = !mod || a.module === mod;
-    return matchQ && matchMod;
+    if (mod && a.module !== mod) return false;
+    if (!q) return true;
+    if (a.attribute.toLowerCase().includes(q)) return true;
+    if ((a.description||'').toLowerCase().includes(q)) return true;
+    if ((a.module||'').toLowerCase().includes(q)) return true;
+    if ((a.columnType||'').toLowerCase().includes(q)) return true;
+    // Search valid values
+    if ((a.validValues||[]).some(v => v.value.toLowerCase().includes(q) || (v.description||'').toLowerCase().includes(q))) return true;
+    return false;
   });
   document.getElementById('attr-results-info').textContent = `Showing ${filtered.length} of ${MODEL.attributes.length} attributes`;
   renderAttrGrid(filtered);
@@ -926,9 +936,30 @@ function closeModal(e) {
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal({target: document.getElementById('modal-overlay')}); });
 
+function filterTemplates(q) {
+  const lower = (q || '').toLowerCase();
+  let shown = 0;
+  document.querySelectorAll('#template-list-container .template-card').forEach(card => {
+    const name = (card.querySelector('.template-name')||{}).textContent || '';
+    const desc = (card.querySelector('.template-desc')||{}).textContent || '';
+    // Also search field names inside the template
+    const fieldNames = Array.from(card.querySelectorAll('.attr-link')).map(el => el.textContent).join(' ');
+    const match = !lower || name.toLowerCase().includes(lower) || desc.toLowerCase().includes(lower) || fieldNames.toLowerCase().includes(lower);
+    card.style.display = match ? '' : 'none';
+    if (match) shown++;
+  });
+  const total = document.querySelectorAll('#template-list-container .template-card').length;
+  document.getElementById('template-results-info').textContent = lower ? `Showing ${shown} of ${total} templates` : '';
+}
+
 function sidebarSearch(q) {
   const lower = q.toLowerCase();
+  // Search attributes
   document.querySelectorAll('#sidebar-attr-list .sidebar-item').forEach(el => {
+    el.style.display = el.textContent.toLowerCase().includes(lower) ? '' : 'none';
+  });
+  // Search templates too
+  document.querySelectorAll('#sidebar-template-list .sidebar-item').forEach(el => {
     el.style.display = el.textContent.toLowerCase().includes(lower) ? '' : 'none';
   });
 }
